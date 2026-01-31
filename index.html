@@ -74,11 +74,6 @@
             padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%;
             font-size: 0.8rem; font-weight: 600;
         }
-
-        .mapboxgl-ctrl-geocoder, .maplibregl-ctrl-geocoder {
-            min-width: 250px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
-            margin-top: 15px !important; margin-right: 15px !important;
-        }
     </style>
 </head>
 <body>
@@ -135,7 +130,12 @@
             style: {
                 version: 8,
                 sources: { 'raster-tiles': { type: 'raster', tiles: [sources.ign], tileSize: 256, attribution: '© IGN' } },
-                layers: [{ id: 'simple-tiles', type: 'raster', source: 'raster-tiles' }]
+                layers: [{ 
+                    id: 'simple-tiles', 
+                    type: 'raster', 
+                    source: 'raster-tiles',
+                    paint: { 'raster-saturation': -0.5 } // Désaturation de 50%
+                }]
             },
             center: [2.5, 46.5],
             zoom: 5.5
@@ -153,38 +153,57 @@
         let markersOnScreen = {};
         let fullData = null;
 
-        // Fonction Camembert (SVG)
-        function createDonutChart(props) {
+        // Fonction Camembert Dynamique (SVG) avec Ombre
+        async function createDonutChart(props) {
             const div = document.createElement('div');
             const count = props.point_count;
-            const size = count < 10 ? 40 : count < 20 ? 50 : 65;
-            let svg = `<svg width="${size}" height="${size}" viewBox="0 0 32 32" style="cursor:pointer; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2))"><circle cx="16" cy="16" r="14" fill="white" />`;
-            const sectorColors = Object.values(colors);
+            const clusterId = props.cluster_id;
+            const size = count < 10 ? 42 : count < 20 ? 52 : 68;
+
+            // Récupération des types réels présents dans ce cluster
+            const leaves = await new Promise(resolve => {
+                map.getSource('spectros').getClusterLeaves(clusterId, count, 0, (err, l) => resolve(l));
+            });
+            
+            const presentTypes = [...new Set(leaves.map(f => f.properties.type))];
+            const sectorColors = presentTypes.map(t => colors[t] || "#ccc");
+            
+            let svg = `<svg width="${size}" height="${size}" viewBox="0 0 32 32" style="cursor:pointer; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3))">
+                <circle cx="16" cy="16" r="15" fill="white" />`; // Fond blanc pour bordure
+            
             const angle = 360 / sectorColors.length;
             sectorColors.forEach((color, i) => {
-                const start = i * angle; const end = (i + 1) * angle;
-                const x1 = 16 + 14 * Math.cos(Math.PI * start / 180); const y1 = 16 + 14 * Math.sin(Math.PI * start / 180);
-                const x2 = 16 + 14 * Math.cos(Math.PI * end / 180); const y2 = 16 + 14 * Math.sin(Math.PI * end / 180);
-                svg += `<path d="M 16 16 L ${x1} ${y1} A 14 14 0 0 1 ${x2} ${y2} Z" fill="${color}" stroke="white" stroke-width="0.5"/>`;
+                if (sectorColors.length === 1) {
+                    svg += `<circle cx="16" cy="16" r="14" fill="${color}" />`;
+                } else {
+                    const start = i * angle; const end = (i + 1) * angle;
+                    const x1 = 16 + 14 * Math.cos(Math.PI * start / 180); const y1 = 16 + 14 * Math.sin(Math.PI * start / 180);
+                    const x2 = 16 + 14 * Math.cos(Math.PI * end / 180); const y2 = 16 + 14 * Math.sin(Math.PI * end / 180);
+                    svg += `<path d="M 16 16 L ${x1} ${y1} A 14 14 0 0 1 ${x2} ${y2} Z" fill="${color}" stroke="white" stroke-width="0.5"/>`;
+                }
             });
-            svg += `<circle cx="16" cy="16" r="8" fill="white" /><text x="16" y="16" text-anchor="middle" dy=".3em" font-size="7" font-weight="bold">${count}</text></svg>`;
+
+            svg += `<circle cx="16" cy="16" r="9" fill="white" /><text x="16" y="16" text-anchor="middle" dy=".3em" font-size="8" font-weight="bold" fill="${"#1e293b"}">${count}</text></svg>`;
+            
             div.innerHTML = svg;
-            div.onclick = () => map.getSource('spectros').getClusterExpansionZoom(props.cluster_id, (err, zoom) => {
+            div.onclick = () => map.getSource('spectros').getClusterExpansionZoom(clusterId, (err, zoom) => {
                 if (!err) map.easeTo({ center: props.coordinates, zoom: zoom });
             });
             return div;
         }
 
-        function updateMarkers() {
+        async function updateMarkers() {
             const newMarkers = {};
             const features = map.querySourceFeatures('spectros');
+            
             for (let f of features) {
                 const props = f.properties;
                 if (!props.cluster) continue;
                 const id = props.cluster_id;
                 let marker = markers[id];
                 if (!marker) {
-                    marker = markers[id] = new maplibregl.Marker({ element: createDonutChart(props) }).setLngLat(f.geometry.coordinates);
+                    const el = await createDonutChart(props);
+                    marker = markers[id] = new maplibregl.Marker({ element: el }).setLngLat(f.geometry.coordinates);
                 }
                 newMarkers[id] = marker;
                 if (!markersOnScreen[id]) marker.addTo(map);
@@ -194,7 +213,6 @@
         }
 
         map.on('load', async () => {
-            // Chargement du fichier externe
             const response = await fetch('./spectrometres.geojson');
             fullData = await response.json();
 
@@ -204,11 +222,10 @@
                 id: 'unclustered-point', type: 'circle', source: 'spectros', filter: ['!', ['has', 'point_count']],
                 paint: {
                     'circle-color': ['match', ['get', 'type'], 'Pulsé', colors['Pulsé'], 'Paillasse', colors['Paillasse'], 'CW', colors['CW'], 'Multi-fréquence', colors['Multi-fréquence'], '#ccc'],
-                    'circle-radius': 8, 'circle-stroke-width': 3, 'circle-stroke-color': '#fff'
+                    'circle-radius': 9, 'circle-stroke-width': 3, 'circle-stroke-color': '#fff'
                 }
             });
 
-            // Peuplage datalist
             const list = document.getElementById('spectro-list');
             fullData.features.forEach(f => {
                 const o = document.createElement('option');
@@ -220,7 +237,6 @@
             map.on('move', updateMarkers);
         });
 
-        // Recherche latérale
         document.getElementById('global-search').addEventListener('input', (e) => {
             const val = e.target.value.toLowerCase();
             if(val.length < 2 || !fullData) return;
@@ -228,7 +244,7 @@
                 feat.properties.nom.toLowerCase().includes(val) || 
                 feat.properties.ville.toLowerCase().includes(val)
             );
-            if(f) map.flyTo({ center: f.geometry.coordinates, zoom: 12 });
+            if(f) map.flyTo({ center: f.geometry.coordinates, zoom: 14 });
         });
 
         document.getElementById('filter-type').onchange = (e) => {
@@ -237,7 +253,12 @@
         };
 
         document.querySelectorAll('input[name="basemap"]').forEach(i => {
-            i.onchange = (e) => map.getSource('raster-tiles').setTiles([sources[e.target.value]]);
+            i.onchange = (e) => {
+                const sourceTiles = sources[e.target.value];
+                map.getSource('raster-tiles').setTiles([sourceTiles]);
+                // On garde la désaturation seulement pour l'IGN
+                map.setPaintProperty('simple-tiles', 'raster-saturation', e.target.value === 'ign' ? -0.5 : 0);
+            };
         });
 
         document.getElementById('toggle-sidebar').onclick = () => document.getElementById('sidebar').classList.toggle('collapsed');
@@ -250,7 +271,7 @@
 
         map.on('click', 'unclustered-point', (e) => {
             const p = e.features[0].properties;
-            new maplibregl.Popup().setLngLat(e.features[0].geometry.coordinates)
+            new maplibregl.Popup({ offset: 10 }).setLngLat(e.features[0].geometry.coordinates)
                 .setHTML(`<strong>${p.nom}</strong><br>Ville: ${p.ville}<br>Type: ${p.type}<br><a href="${p.url}" target="_blank">Fiche technique</a>`)
                 .addTo(map);
         });
