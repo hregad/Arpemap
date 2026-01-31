@@ -3,274 +3,257 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cartographie des Spectromètres - France</title>
+    <title>RPE France - Cartographie Recherche</title>
     
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-    
     <script src="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.5.0/dist/maplibre-gl-geocoder.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/@maplibre/maplibre-gl-geocoder@1.5.0/dist/maplibre-gl-geocoder.css" type="text/css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
 
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        :root {
+            --primary: #2563eb; --dark: #1e293b; --bg-sidebar: #ffffff;
+            --text: #334155; --pulse-color: #ef4444; --paillasse-color: #10b981;
+            --cw-color: #f59e0b; --multi-color: #8b5cf6;
+        }
+
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; color: var(--text); background: #f8fafc; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-        /* Sidebar Style */
         #sidebar {
-            position: absolute;
-            top: 0; left: 0;
-            width: 300px;
-            height: 100%;
-            background: white;
-            z-index: 2;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-            padding: 20px;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
+            position: absolute; top: 15px; left: 15px; bottom: 15px; width: 320px;
+            background: var(--bg-sidebar); z-index: 10; border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: flex; flex-direction: column;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden;
         }
-        #sidebar.collapsed { transform: translateX(-300px); }
-        
-        #toggle-sidebar {
-            position: absolute;
-            top: 15px; left: 310px;
-            z-index: 3;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            cursor: pointer;
-            padding: 8px 12px;
-            transition: left 0.3s ease;
-        }
-        #sidebar.collapsed + #toggle-sidebar { left: 10px; }
+        #sidebar.collapsed { transform: translateX(-350px); }
 
-        .menu-section { margin-bottom: 25px; }
-        h3 { font-size: 1.1em; color: #333; margin-top: 0; }
-        
+        .sidebar-header { padding: 20px; background: var(--dark); color: white; }
+        .sidebar-header h2 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+        .sidebar-content { padding: 20px; flex-grow: 1; overflow-y: auto; }
+
+        .search-container { margin-bottom: 20px; position: relative; }
+        #global-search {
+            width: 100%; padding: 12px; border: 1px solid #e2e8f0;
+            border-radius: 8px; box-sizing: border-box; font-size: 0.9rem;
+            outline: none; transition: border-color 0.2s;
+        }
+        #global-search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        .filter-group { margin-bottom: 15px; }
+        .filter-label { font-weight: 600; font-size: 0.85rem; margin-bottom: 8px; display: block; text-transform: uppercase; color: #64748b; }
+        select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; }
+
+        .legend { font-size: 0.8rem; margin-top: 20px; border-top: 1px solid #f1f5f9; padding-top: 15px; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 5px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; }
+
         .btn-home {
-            background: #0078d4;
-            color: white;
-            border: none;
-            padding: 10px;
-            width: 100%;
-            border-radius: 4px;
-            cursor: pointer;
-            text-decoration: none;
-            display: block;
-            text-align: center;
-            margin-top: auto;
+            background: #f1f5f9; color: var(--dark); border: none; padding: 12px;
+            width: 100%; font-weight: 600; cursor: pointer; text-decoration: none;
+            display: block; text-align: center; border-top: 1px solid #e2e8f0;
         }
-        
-        /* Custom Controls */
+
+        #toggle-sidebar {
+            position: absolute; top: 20px; left: 345px; z-index: 11;
+            background: white; border: none; width: 40px; height: 40px;
+            border-radius: 8px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+            transition: left 0.4s;
+        }
+        #sidebar.collapsed + #toggle-sidebar { left: 20px; }
+
         .map-overlay {
-            position: absolute;
-            bottom: 30px;
-            right: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 4px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            z-index: 1;
+            position: absolute; bottom: 30px; right: 15px;
+            background: white; padding: 8px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 1;
         }
-        
-        .layer-switcher label { display: block; cursor: pointer; font-size: 0.9em; }
-        .btn-3d { margin-top: 10px; width: 100%; cursor: pointer; padding: 5px; }
+        .btn-3d { 
+            background: var(--dark); color: white; border: none; 
+            padding: 8px 15px; border-radius: 6px; cursor: pointer; margin-top: 8px; width: 100%;
+            font-size: 0.8rem; font-weight: 600;
+        }
+
+        .mapboxgl-ctrl-geocoder, .maplibregl-ctrl-geocoder {
+            min-width: 250px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+            margin-top: 15px !important; margin-right: 15px !important;
+        }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <h3>Recherche & Filtres</h3>
-        
-        <div class="menu-section">
-            <label>Filtrer par type :</label><br>
-            <select id="filter-type" style="width: 100%; padding: 5px; margin-top: 5px;">
-                <option value="all">Tous les types</option>
-                <option value="Masse">Masse</option>
-                <option value="RMN">RMN</option>
-                <option value="Infrarouge">Infrarouge</option>
-            </select>
+        <div class="sidebar-header"><h2>Réseau Spectros RPE</h2></div>
+        <div class="sidebar-content">
+            <div class="search-container">
+                <span class="filter-label">Rechercher un instrument</span>
+                <input type="text" id="global-search" list="spectro-list" placeholder="Nom, labo, ville...">
+                <datalist id="spectro-list"></datalist>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">Filtrer par technologie</span>
+                <select id="filter-type">
+                    <option value="all">Tous les types</option>
+                    <option value="Pulsé">Pulsé</option>
+                    <option value="Paillasse">Paillasse</option>
+                    <option value="CW">CW (Continu)</option>
+                    <option value="Multi-fréquence">Multi-fréquence</option>
+                </select>
+            </div>
+            <div class="legend">
+                <span class="filter-label">Légende</span>
+                <div class="legend-item"><span class="dot" style="background:var(--pulse-color)"></span> Pulsé</div>
+                <div class="legend-item"><span class="dot" style="background:var(--paillasse-color)"></span> Paillasse</div>
+                <div class="legend-item"><span class="dot" style="background:var(--cw-color)"></span> CW</div>
+                <div class="legend-item"><span class="dot" style="background:var(--multi-color)"></span> Multi-fréquence</div>
+            </div>
         </div>
-
-        <div class="menu-section">
-            <p><small>Cliquez sur un groupe pour zoomer ou sur un point pour voir les détails techniques.</small></p>
-        </div>
-
-        <a href="#" class="btn-home">Retour Accueil</a>
+        <a href="#" class="btn-home">← Accueil Portail</a>
     </div>
 
     <button id="toggle-sidebar">☰</button>
-
     <div id="map"></div>
 
     <div class="map-overlay">
-        <div class="layer-switcher">
-            <label><input type="radio" name="basemap" value="ign" checked> IGN Plan </label>
-            <label><input type="radio" name="basemap" value="esri"> ESRI Satellite</label>
+        <div style="display: flex; flex-direction: column; gap: 5px; font-size: 0.8rem;">
+            <label><input type="radio" name="basemap" value="ign" checked> IGN Plan</label>
+            <label><input type="radio" name="basemap" value="esri"> Satellite</label>
         </div>
-        <button class="btn-3d" id="btn-3d">Vue 3D / 2D</button>
+        <button class="btn-3d" id="btn-3d">MODE 3D</button>
     </div>
 
     <script>
-        // Configuration des sources
         const sources = {
             ign: 'https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&FORMAT=image/png&STYLE=normal',
             esri: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
         };
+        const colors = { "Pulsé": "#ef4444", "Paillasse": "#10b981", "CW": "#f59e0b", "Multi-fréquence": "#8b5cf6" };
 
         const map = new maplibregl.Map({
             container: 'map',
             style: {
                 version: 8,
-                sources: {
-                    'raster-tiles': {
-                        type: 'raster',
-                        tiles: [sources.ign],
-                        tileSize: 256,
-                        attribution: '© IGN'
-                    }
-                },
-                layers: [{ id: 'simple-tiles', type: 'raster', source: 'raster-tiles', minzoom: 0, maxzoom: 22 }]
+                sources: { 'raster-tiles': { type: 'raster', tiles: [sources.ign], tileSize: 256, attribution: '© IGN' } },
+                layers: [{ id: 'simple-tiles', type: 'raster', source: 'raster-tiles' }]
             },
-            center: [2.2137, 46.2276], // Centre de la France
-            zoom: 5
+            center: [2.5, 46.5],
+            zoom: 5.5
         });
 
-        // Contrôles standards
-        map.addControl(new maplibregl.NavigationControl(), 'top-right');
-        map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
-        
-        // Géocodeur (Recherche)
-        const geocoderApi = {
+        map.addControl(new MaplibreGeocoder({
             forwardGeocode: async (config) => {
-                const features = [];
-                try {
-                    const request = `https://nominatim.openstreetmap.org/search?q=${config.query}&format=geojson&addressdetails=1&limit=5`;
-                    const response = await fetch(request);
-                    const geojson = await response.json();
-                    for (let feature of geojson.features) {
-                        features.push(feature);
-                    }
-                } catch (e) { console.error(`Failed to forwardGeocode with error: ${e}`); }
-                return { features };
+                const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${config.query}&format=geojson&limit=5`);
+                return await r.json();
             }
+        }, { maplibregl: maplibregl }), 'top-right');
+        map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
+
+        let markers = {};
+        let markersOnScreen = {};
+        let fullData = null;
+
+        // Fonction Camembert (SVG)
+        function createDonutChart(props) {
+            const div = document.createElement('div');
+            const count = props.point_count;
+            const size = count < 10 ? 40 : count < 20 ? 50 : 65;
+            let svg = `<svg width="${size}" height="${size}" viewBox="0 0 32 32" style="cursor:pointer; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2))"><circle cx="16" cy="16" r="14" fill="white" />`;
+            const sectorColors = Object.values(colors);
+            const angle = 360 / sectorColors.length;
+            sectorColors.forEach((color, i) => {
+                const start = i * angle; const end = (i + 1) * angle;
+                const x1 = 16 + 14 * Math.cos(Math.PI * start / 180); const y1 = 16 + 14 * Math.sin(Math.PI * start / 180);
+                const x2 = 16 + 14 * Math.cos(Math.PI * end / 180); const y2 = 16 + 14 * Math.sin(Math.PI * end / 180);
+                svg += `<path d="M 16 16 L ${x1} ${y1} A 14 14 0 0 1 ${x2} ${y2} Z" fill="${color}" stroke="white" stroke-width="0.5"/>`;
+            });
+            svg += `<circle cx="16" cy="16" r="8" fill="white" /><text x="16" y="16" text-anchor="middle" dy=".3em" font-size="7" font-weight="bold">${count}</text></svg>`;
+            div.innerHTML = svg;
+            div.onclick = () => map.getSource('spectros').getClusterExpansionZoom(props.cluster_id, (err, zoom) => {
+                if (!err) map.easeTo({ center: props.coordinates, zoom: zoom });
+            });
+            return div;
+        }
+
+        function updateMarkers() {
+            const newMarkers = {};
+            const features = map.querySourceFeatures('spectros');
+            for (let f of features) {
+                const props = f.properties;
+                if (!props.cluster) continue;
+                const id = props.cluster_id;
+                let marker = markers[id];
+                if (!marker) {
+                    marker = markers[id] = new maplibregl.Marker({ element: createDonutChart(props) }).setLngLat(f.geometry.coordinates);
+                }
+                newMarkers[id] = marker;
+                if (!markersOnScreen[id]) marker.addTo(map);
+            }
+            for (let id in markersOnScreen) if (!newMarkers[id]) markersOnScreen[id].remove();
+            markersOnScreen = newMarkers;
+        }
+
+        map.on('load', async () => {
+            // Chargement du fichier externe
+            const response = await fetch('./spectrometres.geojson');
+            fullData = await response.json();
+
+            map.addSource('spectros', { type: 'geojson', data: fullData, cluster: true, clusterRadius: 50 });
+
+            map.addLayer({
+                id: 'unclustered-point', type: 'circle', source: 'spectros', filter: ['!', ['has', 'point_count']],
+                paint: {
+                    'circle-color': ['match', ['get', 'type'], 'Pulsé', colors['Pulsé'], 'Paillasse', colors['Paillasse'], 'CW', colors['CW'], 'Multi-fréquence', colors['Multi-fréquence'], '#ccc'],
+                    'circle-radius': 8, 'circle-stroke-width': 3, 'circle-stroke-color': '#fff'
+                }
+            });
+
+            // Peuplage datalist
+            const list = document.getElementById('spectro-list');
+            fullData.features.forEach(f => {
+                const o = document.createElement('option');
+                o.value = `${f.properties.nom} (${f.properties.ville})`;
+                list.appendChild(o);
+            });
+
+            map.on('data', (e) => { if (e.sourceId === 'spectros' && e.isSourceLoaded) updateMarkers(); });
+            map.on('move', updateMarkers);
+        });
+
+        // Recherche latérale
+        document.getElementById('global-search').addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase();
+            if(val.length < 2 || !fullData) return;
+            const f = fullData.features.find(feat => 
+                feat.properties.nom.toLowerCase().includes(val) || 
+                feat.properties.ville.toLowerCase().includes(val)
+            );
+            if(f) map.flyTo({ center: f.geometry.coordinates, zoom: 12 });
+        });
+
+        document.getElementById('filter-type').onchange = (e) => {
+            const v = e.target.value;
+            map.setFilter('unclustered-point', v === 'all' ? ['!', ['has', 'point_count']] : ['all', ['!', ['has', 'point_count']], ['==', ['get', 'type'], v]]);
         };
-        map.addControl(new MaplibreGeocoder(geocoderApi, { maplibregl: maplibregl }), 'top-right');
 
-        map.on('load', () => {
-            // Ajout du fichier GeoJSON avec Clustering
-            map.addSource('spectros', {
-                type: 'geojson',
-                data: './spectrometres.geojson', // Chemin relatif vers ton fichier
-                cluster: true,
-                clusterMaxZoom: 14,
-                clusterRadius: 50
-            });
-
-            // Layer Clusters (cercles)
-            map.addLayer({
-                id: 'clusters',
-                type: 'circle',
-                source: 'spectros',
-                filter: ['has', 'point_count'],
-                paint: {
-                    'circle-color': ['step', ['get', 'point_count'], '#51bbd6', 3, '#f1f075', 7, '#f28cb1'],
-                    'circle-radius': ['step', ['get', 'point_count'], 20, 3, 30, 7, 40]
-                }
-            });
-
-            // Texte des clusters (nombres)
-            map.addLayer({
-                id: 'cluster-count',
-                type: 'symbol',
-                source: 'spectros',
-                filter: ['has', 'point_count'],
-                layout: {
-                    'text-field': '{point_count}',
-                    'text-font': ['Open Sans Regular'],
-                    'text-size': 12
-                }
-            });
-
-            // Points individuels (non clusterisés)
-            map.addLayer({
-                id: 'unclustered-point',
-                type: 'circle',
-                source: 'spectros',
-                filter: ['!', ['has', 'point_count']],
-                paint: {
-                    'circle-color': '#0078d4',
-                    'circle-radius': 8,
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#fff'
-                }
-            });
-
-            // -- Événements --
-
-            // Zoom sur cluster
-            map.on('click', 'clusters', (e) => {
-                const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
-                const clusterId = features[0].properties.cluster_id;
-                map.getSource('spectros').getClusterExpansionZoom(clusterId, (err, zoom) => {
-                    if (err) return;
-                    map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom });
-                });
-            });
-
-            // Popup sur point individuel
-            map.on('click', 'unclustered-point', (e) => {
-                const coords = e.features[0].geometry.coordinates.slice();
-                const props = e.features[0].properties;
-
-                new maplibregl.Popup()
-                    .setLngLat(coords)
-                    .setHTML(`
-                        <strong>${props.nom}</strong><br>
-                        Labo: ${props.labo}<br>
-                        Type: ${props.type}<br>
-                        <a href="${props.url}" target="_blank">Fiche technique</a>
-                    `)
-                    .addTo(map);
-            });
-
-            // Filtre via Sidebar
-            document.getElementById('filter-type').addEventListener('change', (e) => {
-                const val = e.target.value;
-                if (val === 'all') {
-                    map.setFilter('unclustered-point', ['!', ['has', 'point_count']]);
-                } else {
-                    map.setFilter('unclustered-point', ['all', ['!', ['has', 'point_count']], ['==', ['get', 'type'], val]]);
-                }
-            });
+        document.querySelectorAll('input[name="basemap"]').forEach(i => {
+            i.onchange = (e) => map.getSource('raster-tiles').setTiles([sources[e.target.value]]);
         });
 
-        // Switcher de fonds de plan
-        document.querySelectorAll('input[name="basemap"]').forEach(input => {
-            input.addEventListener('change', (e) => {
-                const sourceUrl = sources[e.target.value];
-                map.getSource('raster-tiles').setTiles([sourceUrl]);
-            });
+        document.getElementById('toggle-sidebar').onclick = () => document.getElementById('sidebar').classList.toggle('collapsed');
+        
+        document.getElementById('btn-3d').onclick = (e) => {
+            const is3D = map.getPitch() > 0;
+            map.easeTo({ pitch: is3D ? 0 : 60, bearing: is3D ? 0 : -20, duration: 1000 });
+            e.target.innerText = is3D ? "MODE 3D" : "MODE 2D";
+        };
+
+        map.on('click', 'unclustered-point', (e) => {
+            const p = e.features[0].properties;
+            new maplibregl.Popup().setLngLat(e.features[0].geometry.coordinates)
+                .setHTML(`<strong>${p.nom}</strong><br>Ville: ${p.ville}<br>Type: ${p.type}<br><a href="${p.url}" target="_blank">Fiche technique</a>`)
+                .addTo(map);
         });
-
-        // Gestion du panneau latéral
-        document.getElementById('toggle-sidebar').addEventListener('click', () => {
-            document.getElementById('sidebar').classList.toggle('collapsed');
-        });
-
-        // Bouton 3D (Inclinaison)
-        document.getElementById('btn-3d').addEventListener('click', () => {
-            const pitch = map.getPitch() === 0 ? 60 : 0;
-            map.easeTo({ pitch: pitch, duration: 1000 });
-        });
-
-        // Curseur pointeur
-        map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
-        map.on('mouseenter', 'unclustered-point', () => map.getCanvas().style.cursor = 'pointer');
-        map.on('mouseleave', 'unclustered-point', () => map.getCanvas().style.cursor = '');
-
     </script>
 </body>
 </html>
